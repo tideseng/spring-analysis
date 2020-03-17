@@ -13,7 +13,7 @@ import javax.servlet.http.HttpServletResponse;
 
 @MyController
 @MyRequestMapping("/user")
-public class UserAction {
+public class UserController {
 
   	@MyAutowired
 	private IUserService userService;
@@ -40,9 +40,8 @@ public class UserAction {
 	}
 
 	@MyRequestMapping("/remove")
-	public void remove(HttpServletRequest req,HttpServletResponse resp,
-					   @MyRequestParam("id") Integer id){
-		System.out.println("remove");
+	public String remove(@MyRequestParam("id") Integer id){
+		return "success";
 	}
 
 }
