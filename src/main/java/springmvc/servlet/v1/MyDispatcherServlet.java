@@ -20,18 +20,27 @@ import java.net.URISyntaxException;
 import java.util.*;
 
 /**
- * 面向过程，可维护性差
- * 接收参数写死，不能动态匹配、不能进行类型数据转换
+ * 代码实现Spring核心原理v1.0
+ * v1.0问题：
+ *      面向过程，阅读性差、可维护性差
+ *      映射容器功能过于集中
+ *      接收参数写死、未实现RequestParam功能、不能动态匹配
+ *      不能进行类型数据转换
  */
 public class MyDispatcherServlet extends HttpServlet {
 
     /**
-     * 映射容器，保存了类路径对应的Controller实例对象、指定名或类名对应的Service实例对象、和访问路径对应的方法对象
+     * 映射容器，保存了类全名对应的Controller实例对象、指定名或类全名对应的Service实例对象、uri与method的映射关系
      */
     private Map<String, Object> mapping = new HashMap<String, Object>();
 
     /**
-     * 需要初始化相关类、IOC容器、Bean
+     * 初始化相关类：
+     *      加载配置文件
+     *      扫描包
+     *      创建实例并放入映射容器
+     *      保存uri与method的映射关系
+     *      DI依赖注入
      * @param config
      * @throws ServletException
      */
@@ -39,10 +48,11 @@ public class MyDispatcherServlet extends HttpServlet {
     public void init(ServletConfig config) throws ServletException {
         InputStream is = null;
         try{
-            // 从web.xml中读取指定的配置文件
+            // 从web.xml中加载配置文件
             Properties configContext = new Properties();
             is = this.getClass().getClassLoader().getResourceAsStream(config.getInitParameter("contextConfigLocation"));
             configContext.load(is);
+
             // 扫描指定包下的所有class文件，将类的全路径作为映射容器的key
             String scanPackage = configContext.getProperty("scan-package");
             doScanner(scanPackage);
@@ -57,7 +67,7 @@ public class MyDispatcherServlet extends HttpServlet {
                     String baseUrl = "";
                     if (clazz.isAnnotationPresent(MyRequestMapping.class)) {
                         MyRequestMapping requestMapping = clazz.getAnnotation(MyRequestMapping.class);
-                        // 获取动Controller的路径
+                        // 获取到Controller的路径
                         baseUrl = requestMapping.value();
                     }
                     Method[] methods = clazz.getMethods();
@@ -125,12 +135,31 @@ public class MyDispatcherServlet extends HttpServlet {
         this.doPost(req, resp);
     }
 
+    /**
+     * 处理请求：
+     *      接收请求
+     *      匹配对应的method
+     *      调用method
+     *      响应客户端
+     * @param req
+     * @param resp
+     * @throws ServletException
+     * @throws IOException
+     */
     @Override
     protected void doPost(HttpServletRequest req, HttpServletResponse resp) throws ServletException, IOException {
         resp.setCharacterEncoding("utf-8");
         resp.setContentType("text/html;charset=utf-8");
         try {
-            doDispatch(req, resp);
+            String uri = req.getRequestURI().replace(req.getContextPath(), "").replaceAll("/+", "/");
+            if(!this.mapping.containsKey(uri)){
+                resp.getWriter().write("404 Not Found!!");
+                return;
+            }
+            Method method = (Method) this.mapping.get(uri);
+            Map<String,String[]> params = req.getParameterMap();
+            String param = params.get("name")[0];
+            method.invoke(this.mapping.get(method.getDeclaringClass().getName()), new Object[]{req, resp, param});
         } catch (Exception e) {
             e.printStackTrace();
             resp.getWriter().write("500 Exception " + Arrays.toString(e.getStackTrace()));
@@ -138,27 +167,7 @@ public class MyDispatcherServlet extends HttpServlet {
     }
 
     /**
-     * 分发请求
-     * @param req
-     * @param resp
-     * @throws IOException
-     * @throws InvocationTargetException
-     * @throws IllegalAccessException
-     */
-    private void doDispatch(HttpServletRequest req, HttpServletResponse resp) throws IOException, InvocationTargetException, IllegalAccessException {
-        String url = req.getRequestURI().replace(req.getContextPath(), "").replaceAll("/+", "/");
-        if(!this.mapping.containsKey(url)){
-            resp.getWriter().write("404 Not Found!!");
-            return;
-        }
-        Method method = (Method) this.mapping.get(url);
-        Map<String,String[]> params = req.getParameterMap();
-        String param = params.get("name")[0];
-        method.invoke(this.mapping.get(method.getDeclaringClass().getName()), new Object[]{req, resp, param});
-    }
-
-    /**
-     * 扫描指定包下的所有class文件，将类的全路径作为映射容器的key
+     * 扫描指定包下的所有class文件，将类的全路径作为映射容器的key（递归调用）
      * @param scanPackage
      * @throws URISyntaxException
      */
