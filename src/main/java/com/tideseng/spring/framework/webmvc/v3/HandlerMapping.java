@@ -1,7 +1,7 @@
-package springmvc.servlet.v3;
+package com.tideseng.spring.framework.webmvc.v3;
 
 import lombok.Data;
-import springmvc.annotation.MyRequestParam;
+import com.tideseng.spring.framework.annotation.MyRequestParam;
 
 import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;

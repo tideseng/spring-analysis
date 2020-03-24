@@ -1,7 +1,7 @@
-package com.tideseng.service.impl;
+package com.tideseng.spring.demo.service.impl;
 
-import com.tideseng.service.IUserService;
-import springmvc.annotation.MyService;
+import com.tideseng.spring.demo.service.IUserService;
+import com.tideseng.spring.framework.annotation.MyService;
 
 @MyService
 public class UserServiceImpl implements IUserService {

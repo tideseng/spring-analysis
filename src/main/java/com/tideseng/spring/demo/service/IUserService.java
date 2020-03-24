@@ -1,4 +1,4 @@
-package com.tideseng.service;
+package com.tideseng.spring.demo.service;
 
 public interface IUserService {
 

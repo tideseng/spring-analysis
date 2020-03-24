@@ -1,11 +1,11 @@
-package springmvc.annotation;
+package com.tideseng.spring.framework.annotation;
 
 import java.lang.annotation.*;
 
-@Target({ElementType.METHOD, ElementType.TYPE})
+@Target({ElementType.TYPE})
 @Retention(RetentionPolicy.RUNTIME)
 @Documented
-public @interface MyRequestMapping {
+public @interface MyController {
 
     String value() default "";
 

@@ -1,4 +1,4 @@
-package springmvc.annotation;
+package com.tideseng.spring.framework.annotation;
 
 import java.lang.annotation.*;
 

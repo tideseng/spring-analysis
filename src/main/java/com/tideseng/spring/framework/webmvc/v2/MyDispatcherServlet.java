@@ -1,6 +1,4 @@
-package springmvc.servlet.v3;
-
-import springmvc.annotation.*;
+package com.tideseng.spring.framework.webmvc.v2;
 
 import javax.servlet.ServletConfig;
 import javax.servlet.ServletException;
@@ -16,27 +14,40 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URISyntaxException;
 import java.util.*;
+import com.tideseng.spring.framework.annotation.*;
 
 /**
- * 代码实现Spring核心原理v3.0
- * v3.0功能：
- *      优化HandlerMapping
- * 相关结论：
- *      Spring中的Bean不存在线程是否安全一说
- *          Spring是通过扫描包利用反射创建对象并放入IOC容器
- *          Bean是否线程安全只何Bean本身有关，和Spring无关
-*       Spring中的不同的Bean有不同的回收机制，某些Bean不会被回收
- *          Spring中的Bean有singleton、prototype、request、session、global-session
- *          Spring中的Bean默认是singleton，会一直存在IOC容器中，而IOC容器本身就是单例，基于Spring上下文，singleton随着Spring的存亡而存亡
- *          prototype是用到的手创建，用完之后Bean的引用不指向任何地方，等着GC被回收
+ * 代码实现Spring核心原理v2.0
+ * v2.0功能：
+ *      应用设计模式提高了代码阅读性和可维护性
+ *      实现RequestParam功能、动态匹配参数
+ *      可以进行常用类型数据转换
+ * v2.0缺陷
+ *      处理请求调用方法时略显复杂，即handlerMapping封装的不够完美
+ * 实现思路：
+ *  1.配置阶段
+ *      配置web.xml：              DispatcherServlet
+ *      设定init-param：           contextConfigLocation=classpath:application.xml
+ *      设定url-pattern：          /
+ *      配置Annotation：           @Controller/@Service/@Autowired/@RequestMapping/@RequestParam
+ *  2.初始化阶段
+ *      调用init方法：             加载配置文件
+ *      扫描相关类：               scan-package="com.tideseng"
+ *      创建实例并保存到IOC容器：   通过反射实例化对象
+ *      DI依赖注入：                   扫描IOC容器中的实例，给属性自动赋值
+ *      初始化HandlerMapping：     将URI与对应的Method进行映射关联
+ *  3.运行阶段
+ *      调用doPost()/doGet()：     处理请求，获取request、response
+ *      匹配HandlerMapping：       通过请求url获取对应的Method
+ *      反射调用method.invoke()：    通过反射调用方法并返回结果
+ *      response.getWrite().write()：将返会结果输出到客户端
  */
 public class MyDispatcherServlet extends HttpServlet {
 
     private Properties properties = new Properties();
     private List<String> classNameList = new ArrayList<>();
     private Map<String, Object> ioc = new HashMap<>();
-    // 因为Handler中已经有了url和method的对应关系，根据设计原则（单一职责原则、最少知道原则）和性能差别不大上考虑，不用map
-    private List<HandlerMapping> handlerMappings = new ArrayList<>();
+    private Map<String, Method> handlerMapping = new HashMap<>();
 
     /**
      * 二、初始化阶段（模板模式实现）
@@ -174,7 +185,7 @@ public class MyDispatcherServlet extends HttpServlet {
      * 策略模式
      * @param ioc
      */
-    private void initHandlerMapping(Map<String, Object> ioc) throws IllegalAccessException, InstantiationException {
+    private void initHandlerMapping(Map<String, Object> ioc) {
         for(Map.Entry<String, Object> entry : ioc.entrySet()) {
             Class<?> clazz = entry.getValue().getClass();
             if(!clazz.isAnnotationPresent(MyController.class)) continue;
@@ -182,57 +193,43 @@ public class MyDispatcherServlet extends HttpServlet {
             for(Method method : clazz.getMethods()){ // 获取所有public方法
                 if(!method.isAnnotationPresent(MyRequestMapping.class)) continue;
                 MyRequestMapping requestMapping = method.getAnnotation(MyRequestMapping.class);
-                handlerMappings.add(new HandlerMapping(("/"+controllerUri+"/"+requestMapping.value()).replaceAll("/+", "/"), method, entry.getValue()));
+                handlerMapping.put(("/"+controllerUri+"/"+requestMapping.value()).replaceAll("/+", "/"), method);
             }
         }
     }
 
     private void doDispatch(HttpServletRequest req, HttpServletResponse resp) throws IOException, InvocationTargetException, IllegalAccessException {
         String uri = req.getRequestURI().replace(req.getContextPath(), "");
-        HandlerMapping handlerMapping = getHandlerMapping(uri);
-        if(handlerMapping == null) {
+        Method method = handlerMapping.get(uri);
+        if(method == null) {
             resp.getWriter().write("404 error");
             return;
         }
-        Object result = handlerMapping.getMethod().invoke(handlerMapping.getController(), getArgs(req, resp, handlerMapping));
-        if(result == null || result instanceof  Void) return;
-        resp.getWriter().write(result.toString());
+        method.invoke(ioc.get(toLowerFirstCase(method.getDeclaringClass().getSimpleName())), getArgs(req, resp, method));
     }
 
-    private HandlerMapping getHandlerMapping(String uri) {
-        if(handlerMappings.isEmpty()) return null;
-        for(HandlerMapping handler : handlerMappings){
-            if(handler.getUrl().equals(uri))
-                return handler;
-        }
-        return null;
-    }
-
-    /**
-     * 封装实参更为方便
-     * @param req
-     * @param resp
-     * @param handlerMapping
-     * @return
-     */
-    private Object[] getArgs(HttpServletRequest req, HttpServletResponse resp, HandlerMapping handlerMapping){
+    private Object[] getArgs(HttpServletRequest req, HttpServletResponse resp, Method method){
         Map<String, String[]> parameterMap = req.getParameterMap(); // 请求参数
-        Class<?>[] parameterTypes = handlerMapping.getParameterTypes(); // 形参列表
+        Class<?>[] parameterTypes = method.getParameterTypes(); // 形参列表
         Object[] args = new Object[parameterTypes.length]; // 实参列表
-
-        if(handlerMapping.getParamIndexMapping().containsKey(HttpServletRequest.class.getName())) {
-            Integer reqIndex = handlerMapping.getParamIndexMapping().get(HttpServletRequest.class.getName());
-            args[reqIndex] = req;
-        }
-        if(handlerMapping.getParamIndexMapping().containsKey(HttpServletResponse.class.getName())) {
-            Integer respIndex = handlerMapping.getParamIndexMapping().get(HttpServletResponse.class.getName());
-            args[respIndex] = resp;
-        }
-        for (Map.Entry<String, String[]> entry : parameterMap.entrySet()) {
-            String paramValue = Arrays.toString(entry.getValue()).replaceAll("\\[|\\]", "").replaceAll(",\\s", ",");
-            if(!handlerMapping.getParamIndexMapping().containsKey(entry.getKey())) continue;
-            Integer index = handlerMapping.getParamIndexMapping().get(entry.getKey());
-            args[index] = convert(parameterTypes[index], paramValue);
+        for (int i = 0; i < parameterTypes.length; i++) {
+            Class<?> parameterType = parameterTypes[i];
+            if(parameterType == HttpServletRequest.class){
+                args[i] = req;
+            } else if(parameterType == HttpServletResponse.class){
+                args[i] = resp;
+            } else {
+                Annotation[][] parameterAnnotations = method.getParameterAnnotations(); // 获取方法中加带注解的参数列表（一维数组是参数列表，二维数组是注解列表）
+                for(Annotation annotation : parameterAnnotations[i]){
+                    if(annotation instanceof MyRequestParam){
+                        String paramName = ((MyRequestParam) annotation).value();
+                        if(parameterMap.containsKey(paramName)) {
+                            String paramValue = Arrays.toString(parameterMap.get(paramName)).replaceAll("\\[|\\]", "").replaceAll(",\\s", ",");
+                            args[i] = convert(parameterType, paramValue);
+                        }
+                    }
+                }
+            }
         }
         return args;
     }
@@ -254,6 +251,6 @@ public class MyDispatcherServlet extends HttpServlet {
         chars[0] += 1<<5; // 1向左移动5位，即+32（ASCII中大小写相差32）
         return String.valueOf(chars);
     }
-
+    
 }
 

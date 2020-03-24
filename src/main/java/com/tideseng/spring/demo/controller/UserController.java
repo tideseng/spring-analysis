@@ -1,10 +1,10 @@
-package com.tideseng.controller;
+package com.tideseng.spring.demo.controller;
 
-import com.tideseng.service.IUserService;
-import springmvc.annotation.MyAutowired;
-import springmvc.annotation.MyController;
-import springmvc.annotation.MyRequestMapping;
-import springmvc.annotation.MyRequestParam;
+import com.tideseng.spring.demo.service.IUserService;
+import com.tideseng.spring.framework.annotation.MyAutowired;
+import com.tideseng.spring.framework.annotation.MyController;
+import com.tideseng.spring.framework.annotation.MyRequestMapping;
+import com.tideseng.spring.framework.annotation.MyRequestParam;
 
 import java.io.IOException;
 
