@@ -1,4 +1,4 @@
-package com.tideseng.spring.framework.webmvc.v1;
+package com.tideseng.spring.framework.webmvc.mini.v1;
 
 import javax.servlet.ServletConfig;
 import javax.servlet.ServletException;

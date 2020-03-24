@@ -1,4 +1,4 @@
-package com.tideseng.spring.framework.webmvc.v3;
+package com.tideseng.spring.framework.webmvc.mini.v3;
 
 import lombok.Data;
 import com.tideseng.spring.framework.annotation.MyRequestParam;
@@ -9,18 +9,29 @@ import java.lang.annotation.Annotation;
 import java.lang.reflect.Method;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.regex.Pattern;
 
 @Data
 public class HandlerMapping {
 
-    private String url;
-    private Method method;
+    private String url; // url
+    private Pattern pattern; // url匹配规则
+    private Method method; // 映射的方法
     private Object controller;
-    private Map<String, Integer> paramIndexMapping;
+    private Map<String, Integer> paramIndexMapping; // 参数名对应的顺序
     private Class<?>[] parameterTypes;
 
     public HandlerMapping(String url, Method method, Object controller) {
         this.url = url;
+        this.method = method;
+        this.controller = controller;
+        this.paramIndexMapping = new HashMap<String,Integer>(); // key为参数名，value为参数index
+        this.parameterTypes = method.getParameterTypes();
+        putParamIndexMapping(method);
+    }
+
+    public HandlerMapping(Pattern pattern, Method method, Object controller) {
+        this.pattern = pattern;
         this.method = method;
         this.controller = controller;
         this.paramIndexMapping = new HashMap<String,Integer>(); // key为参数名，value为参数index
@@ -44,8 +55,7 @@ public class HandlerMapping {
         Class<?> [] paramsTypes = method.getParameterTypes();
         for (int i = 0; i < paramsTypes.length ; i ++) {
             Class<?> type = paramsTypes[i];
-            if(type == HttpServletRequest.class ||
-                    type == HttpServletResponse.class){
+            if(type == HttpServletRequest.class || type == HttpServletResponse.class){
                 paramIndexMapping.put(type.getName(), i);
             }
         }

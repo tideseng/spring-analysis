@@ -1,4 +1,4 @@
-package com.tideseng.spring.framework.webmvc.v3;
+package com.tideseng.spring.framework.webmvc.mini.v3;
 
 import javax.servlet.ServletConfig;
 import javax.servlet.ServletException;
@@ -13,12 +13,15 @@ import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.net.URISyntaxException;
 import java.util.*;
+import java.util.regex.Pattern;
+
 import com.tideseng.spring.framework.annotation.*;
 
 /**
  * 代码实现Spring核心原理v3.0
  * v3.0功能：
  *      优化HandlerMapping
+ *      支持url正则匹配
  * 相关结论：
  *      Spring中的Bean不存在线程是否安全一说
  *          Spring是通过扫描包利用反射创建对象并放入IOC容器
@@ -30,8 +33,11 @@ import com.tideseng.spring.framework.annotation.*;
  */
 public class MyDispatcherServlet extends HttpServlet {
 
+    private static final String LOCATION = "contextConfigLocation";
+    private static final String SCAN = "scan-package";
+
     private Properties properties = new Properties();
-    private List<String> classNameList = new ArrayList<>();
+    private List<String> classNames = new ArrayList<>();
     private Map<String, Object> ioc = new HashMap<>();
     // 因为Handler中已经有了url和method的对应关系，根据设计原则（单一职责原则、最少知道原则）和性能差别不大上考虑，不用map
     private List<HandlerMapping> handlerMappings = new ArrayList<>();
@@ -50,13 +56,13 @@ public class MyDispatcherServlet extends HttpServlet {
     public void init(ServletConfig config) throws ServletException {
         try{
             // 1.加载配置文件
-            doLoadConfig(config.getInitParameter("contextConfigLocation"));
+            doLoadConfig(config.getInitParameter(LOCATION));
 
-            // 2.扫描包
-            doScanner(properties.getProperty("scan-package"));
+            // 2.扫描包下所有类
+            doScanner(properties.getProperty(SCAN));
 
             // 3.创建实例并保存到IOC容器
-            doInstance(classNameList);
+            doInstance(classNames);
 
             // 4.DI依赖注入
             doInject(ioc);
@@ -117,7 +123,7 @@ public class MyDispatcherServlet extends HttpServlet {
                 doScanner(scanPackage+"."+file.getName()); // 递归调用
             } else {
                 if(!file.getName().endsWith(".class")) continue;
-                classNameList.add(scanPackage+"."+file.getName().replace(".class", ""));
+                classNames.add(scanPackage+"."+file.getName().replace(".class", ""));
             }
         }
     }
@@ -134,14 +140,15 @@ public class MyDispatcherServlet extends HttpServlet {
             Class<?> clazz = Class.forName(className);
             if(clazz.isAnnotationPresent(MyController.class)){
                 MyController controller = clazz.getAnnotation(MyController.class);
+                // 有指定值则返回指定值，没有则返回类名且首字母小写
                 String beanName = getAnnotationValueWithLowerFirstCase(clazz, controller.value());
-                ioc.put(beanName, clazz.newInstance()); // Controller以全类名保存至IOC容器
+                ioc.put(beanName, clazz.newInstance()); // Controller以指定名或类名保存至IOC容器
             } else if (clazz.isAnnotationPresent(MyService.class)){
                 MyService service = clazz.getAnnotation(MyService.class);
                 String beanName = getAnnotationValueWithLowerFirstCase(clazz, service.value());
                 Object instance = clazz.newInstance();
                 ioc.put(beanName, instance); // Service以指定名或类名保存至IOC容器
-                for(Class i : clazz.getInterfaces()){ // 【如果存在多接口怎么处理】
+                for(Class i : clazz.getInterfaces()){
                     ioc.put(i.getName(), instance); // Service的接口以全类名保存至IOC容器（当存在相同接口时会被覆盖，依赖注入时建议指定名称）
                 }
             }
@@ -160,7 +167,7 @@ public class MyDispatcherServlet extends HttpServlet {
                 if(!field.isAnnotationPresent(MyAutowired.class)) continue;
                 MyAutowired autowired = field.getAnnotation(MyAutowired.class);
                 String beanName = autowired.value();
-                if("".equals(beanName)) beanName = field.getType().getName(); // 注入时不指定名称，以全类名/类型获取
+                if("".equals(beanName)) beanName = field.getType().getName(); // 注入时不指定名称，以全类名获取
                 if(ioc.get(beanName) == null) throw new RuntimeException(beanName+"对象未创建，无法注入");
                 field.setAccessible(true);
                 field.set(entry.getValue(), ioc.get(beanName)); // 注入值
@@ -180,14 +187,17 @@ public class MyDispatcherServlet extends HttpServlet {
             for(Method method : clazz.getMethods()){ // 获取所有public方法
                 if(!method.isAnnotationPresent(MyRequestMapping.class)) continue;
                 MyRequestMapping requestMapping = method.getAnnotation(MyRequestMapping.class);
-                handlerMappings.add(new HandlerMapping(("/"+controllerUri+"/"+requestMapping.value()).replaceAll("/+", "/"), method, entry.getValue()));
+                String url = ("/"+controllerUri+"/"+requestMapping.value()).replaceAll("/+", "/");
+                Pattern pattern = Pattern.compile(url);
+//                handlerMappings.add(new HandlerMapping(url, method, entry.getValue()));
+                handlerMappings.add(new HandlerMapping(pattern, method, entry.getValue()));
             }
         }
     }
 
     private void doDispatch(HttpServletRequest req, HttpServletResponse resp) throws IOException, InvocationTargetException, IllegalAccessException {
-        String uri = req.getRequestURI().replace(req.getContextPath(), "");
-        HandlerMapping handlerMapping = getHandlerMapping(uri);
+        String url = req.getRequestURI().replace(req.getContextPath(), "");
+        HandlerMapping handlerMapping = getHandlerMapping(url);
         if(handlerMapping == null) {
             resp.getWriter().write("404 error");
             return;
@@ -197,11 +207,13 @@ public class MyDispatcherServlet extends HttpServlet {
         resp.getWriter().write(result.toString());
     }
 
-    private HandlerMapping getHandlerMapping(String uri) {
+    private HandlerMapping getHandlerMapping(String url) {
         if(handlerMappings.isEmpty()) return null;
         for(HandlerMapping handler : handlerMappings){
-            if(handler.getUrl().equals(uri))
+//            if(handler.getUrl().equals(url))
+            if(handler.getPattern().matcher(url).matches())
                 return handler;
+
         }
         return null;
     }
