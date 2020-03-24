@@ -5,7 +5,7 @@
 <web-app>
     <servlet>
         <servlet-name>myDispatcherServlet</servlet-name>
-        <servlet-class>com.tideseng.spring.framework.webmvc.mini.v3.MyDispgitatcherServlet</servlet-class>
+        <servlet-class>com.tideseng.spring.framework.webmvc.mini.v3.MyDispatcherServlet</servlet-class>
         <init-param>
             <param-name>contextConfigLocation</param-name>
             <param-value>application.properties</param-value>
