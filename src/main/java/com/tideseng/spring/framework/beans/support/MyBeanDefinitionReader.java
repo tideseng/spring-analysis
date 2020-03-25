@@ -22,7 +22,7 @@ public class MyBeanDefinitionReader {
 
     public MyBeanDefinitionReader(String... locations) throws Exception {
         // 加载配置文件
-        doLoadConfig(locations[0].replace("classpath", ""));
+        doLoadConfig(locations[0].replace("classpath:", ""));
 
         // 扫描包下所有类
         doScanner(properties.getProperty(SCAN));
@@ -40,6 +40,7 @@ public class MyBeanDefinitionReader {
             if(beanClass.isInterface()) continue;
 
             beanDefinitions.add(createBeanDefinition(toLowerFirstCase(beanClass.getSimpleName()), beanClassName)); // 类以简单类名作为factoryBeanName
+            beanDefinitions.add(createBeanDefinition(beanClass.getName(), beanClassName)); // 类以全类名作为factoryBeanName
             for(Class<?> i : beanClass.getInterfaces()){
                 beanDefinitions.add(createBeanDefinition(i.getName(), beanClassName)); // 类的接口以接口全名作为factoryBeanName
             }
