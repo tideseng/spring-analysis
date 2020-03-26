@@ -13,6 +13,7 @@ import com.tideseng.spring.framework.beans.support.MyDefaultListableBeanFactory;
 import java.lang.reflect.Field;
 import java.util.List;
 import java.util.Map;
+import java.util.Properties;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
@@ -80,17 +81,14 @@ public class MyApplicationContext extends MyDefaultListableBeanFactory implement
      */
     @Override
     public Object getBean(String beanName) throws Exception {
-//        MyBeanPostProcessor beanPostProcessor = new MyBeanPostProcessor();
+        MyBeanPostProcessor beanPostProcessor = new MyBeanPostProcessor();
         MyBeanDefinition beanDefinition = super.beanDefinitionMap.get(beanName);
 
         Object instance = instantiateBean(beanName, beanDefinition);
-//        beanPostProcessor.postProcessBeforeInitialization(instance, beanName);
-        //3、把这个对象封装到BeanWrapper中
-        MyBeanWrapper beanWrapper = new MyBeanWrapper(instance);
-        //4、把BeanWrapper存到IOC容器里面
-//        if(this.factoryBeanInstanceCache.containsKey(beanName)) throw new Exception("The"+beanName+"is exists");
-        this.factoryBeanInstanceCache.put(beanName, beanWrapper);
-//        beanPostProcessor.postProcessAfterInitialization(instance, beanName);
+
+        beanPostProcessor.postProcessBeforeInitialization(instance, beanName);
+        MyBeanWrapper beanWrapper = createBeanWrapper(beanName, instance);
+        beanPostProcessor.postProcessAfterInitialization(instance, beanName);
 
         populateBean(beanName, beanDefinition, beanWrapper);
 
@@ -118,6 +116,15 @@ public class MyApplicationContext extends MyDefaultListableBeanFactory implement
         return instance;
     }
 
+    private MyBeanWrapper createBeanWrapper(String beanName, Object instance){
+        //3、把这个对象封装到BeanWrapper中
+        MyBeanWrapper beanWrapper = new MyBeanWrapper(instance);
+        //4、把BeanWrapper存到IOC容器里面
+//        if(this.factoryBeanInstanceCache.containsKey(beanName)) throw new Exception("The"+beanName+"is exists");
+        this.factoryBeanInstanceCache.put(beanName, beanWrapper);
+        return beanWrapper;
+    }
+
     private void populateBean(String beanName, MyBeanDefinition beanDefinition, MyBeanWrapper beanWrapper) throws Exception {
         Class<?> clazz = beanWrapper.getWrappedClass();
         if(clazz.isAnnotationPresent(MyController.class) || clazz.isAnnotationPresent(MyService.class)) {
@@ -134,6 +141,18 @@ public class MyApplicationContext extends MyDefaultListableBeanFactory implement
                 }
             }
         }
+    }
+
+    public String[] getBeanDefinitionNames(){
+        return super.beanDefinitionMap.keySet().toArray(new String[super.beanDefinitionMap.size()]);
+    }
+
+    public int getBeanDefinitionCount(){
+        return super.beanDefinitionMap.size();
+    }
+
+    public Properties getProperties(){
+        return this.reader.getProperties();
     }
 
 }
