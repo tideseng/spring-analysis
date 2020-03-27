@@ -3,6 +3,11 @@ package com.tideseng.spring.framework.context;
 import com.tideseng.spring.framework.annotation.MyAutowired;
 import com.tideseng.spring.framework.annotation.MyController;
 import com.tideseng.spring.framework.annotation.MyService;
+import com.tideseng.spring.framework.aop.MyAopProxy;
+import com.tideseng.spring.framework.aop.MyCglibAopProxy;
+import com.tideseng.spring.framework.aop.MyJdkDynamicAopProxy;
+import com.tideseng.spring.framework.aop.config.MyAopConfig;
+import com.tideseng.spring.framework.aop.support.MyAdvisedSupport;
 import com.tideseng.spring.framework.beans.MyBeanFactory;
 import com.tideseng.spring.framework.beans.MyBeanWrapper;
 import com.tideseng.spring.framework.beans.config.MyBeanDefinition;
@@ -110,10 +115,41 @@ public class MyApplicationContext extends MyDefaultListableBeanFactory implement
             instance = this.factoryBeanObjectCache.get(beanClassName);
         else {
             instance = Class.forName(beanClassName).newInstance();
+
+            // 初始化AopConfig，检查是否需要代理
+            instance = instantionAopConfig(beanDefinition, instance);
+
             this.factoryBeanObjectCache.put(beanClassName, instance);
             this.factoryBeanObjectCache.put(beanDefinition.getFactoryBeanName(), instance);
         }
         return instance;
+    }
+
+    private Object instantionAopConfig(MyBeanDefinition beanDefinition, Object instance) throws Exception {
+        MyAopConfig config = instantionAopConfig(beanDefinition);
+        MyAdvisedSupport advised = new MyAdvisedSupport(config);
+        advised.setTargetClass(instance.getClass());
+        advised.setTarget(instance);
+        if(advised.pointCutMatch()) instance = createProxy(advised).getProxy(); // 符合PointCut的规则的话，则代理对象
+        return instance;
+    }
+
+    private MyAopConfig instantionAopConfig(MyBeanDefinition beanDefinition) {
+        MyAopConfig config = new MyAopConfig();
+        config.setPointCut(this.reader.getProperties().getProperty("pointCut"));
+        config.setAspectClass(this.reader.getProperties().getProperty("aspectClass"));
+        config.setAspectBefore(this.reader.getProperties().getProperty("aspectBefore"));
+        config.setAspectAfter(this.reader.getProperties().getProperty("aspectAfter"));
+        config.setAspectAfterThrow(this.reader.getProperties().getProperty("aspectAfterThrow"));
+        config.setAspectAfterThrowingName(this.reader.getProperties().getProperty("aspectAfterThrowingName"));
+        config.setAspectAfterReturn(this.reader.getProperties().getProperty("aspectAfterReturn"));
+        return config;
+    }
+
+    private MyAopProxy createProxy(MyAdvisedSupport advised) {
+        if(advised.getTargetClass().getInterfaces().length > 0)
+            return new MyJdkDynamicAopProxy(advised);
+        return new MyCglibAopProxy(advised);
     }
 
     private MyBeanWrapper createBeanWrapper(String beanName, Object instance){
