@@ -41,6 +41,16 @@ public class UserController {
 		return "200";
 	}
 
+	@MyRequestMapping("/todo")
+	public void todo(){
+		this.userService.todo();
+	}
+
+	@MyRequestMapping("/error")
+	public void error() throws Exception {
+		this.userService.error();
+	}
+
 	private void out(HttpServletResponse resp, String result){
 		try {
 			resp.getWriter().write(result);
