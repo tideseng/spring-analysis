@@ -12,6 +12,7 @@ import javax.servlet.http.HttpServletRequest;
 import javax.servlet.http.HttpServletResponse;
 import java.io.File;
 import java.io.IOException;
+import java.lang.reflect.InvocationTargetException;
 import java.lang.reflect.Method;
 import java.util.*;
 import java.util.concurrent.ConcurrentHashMap;
@@ -52,8 +53,10 @@ public class MyDispatcherServlet extends HttpServlet {
         } catch (Exception e) {
             e.printStackTrace();
             Map<String, Object> error = new HashMap<>();
-            error.put("detail", e.getMessage());
+            error.put("detail", e.getMessage() != null ? e.getMessage() : e.getCause().getMessage());
             error.put("stackTrace", Arrays.toString(e.getStackTrace()));
+            if(e instanceof InvocationTargetException)
+                error.put("detail", ((InvocationTargetException) e).getTargetException().getCause().getMessage());
             processDispatchResult(req, resp, new MyModelAndView("500", error));
         }
     }
